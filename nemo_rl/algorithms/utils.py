@@ -23,6 +23,8 @@ from transformers import AutoTokenizer
 from nemo_rl.data import hf_datasets
 from nemo_rl.models.policy import TokenizerConfig
 
+import sentencepiece as spm
+
 
 def calculate_kl_penalty_joschu2020(
     logprobs_policy: torch.Tensor, logprobs_reference: torch.Tensor
@@ -142,6 +144,23 @@ def set_seed(seed: int):
     torch.cuda.manual_seed_all(seed)
 
 
+def _load_sentencepiece_tokenizer(tokenizer_config: TokenizerConfig) -> spm.SentencePieceProcessor:
+    """Load a `.model` into a SentencePieceProcessor.
+
+    Args:
+        tokenizer_config: A dictionary containing tokenizer configuration.
+            Required keys:
+                - name: The name or path of the pretrained tokenizer 
+
+    Returns:
+        spm.SentencePieceProcessor: The initialized SentencePiece tokenizer.
+    """
+    sp_tokenizer = spm.SentencePieceProcessor()
+    sp_tokenizer.load(tokenizer_config["name"])
+    return sp_tokenizer
+
+
+
 def get_tokenizer(tokenizer_config: TokenizerConfig) -> AutoTokenizer:
     """Get the tokenizer and set pad token to eos token if it is not already set.
 
@@ -198,21 +217,27 @@ def get_tokenizer(tokenizer_config: TokenizerConfig) -> AutoTokenizer:
         >>> assert formatted == " START: You are a helpful AI assistant. END. START: Hello! END."
         ```
     """
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_config["name"])
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    if "chat_template" in tokenizer_config:
-        if tokenizer_config["chat_template"] is None:
-            print("Using passthrough chat template")
-            tokenizer.chat_template = (
-                hf_datasets.COMMON_CHAT_TEMPLATES.passthrough_prompt_response
-            )
-        elif tokenizer_config["chat_template"].lower() == "default":
-            print("Using tokenizer's default chat template")
+    tokenizer_type = tokenizer_config.get("type", "huggingface")
+    if tokenizer_type == "huggingface":
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_config["name"])
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        if "chat_template" in tokenizer_config:
+            if tokenizer_config["chat_template"] is None:
+                print("Using passthrough chat template")
+                tokenizer.chat_template = (
+                    hf_datasets.COMMON_CHAT_TEMPLATES.passthrough_prompt_response
+                )
+            elif tokenizer_config["chat_template"].lower() == "default":
+                print("Using tokenizer's default chat template")
+            else:
+                print("Using custom chat template")
+                tokenizer.chat_template = tokenizer_config["chat_template"]
         else:
-            print("Using custom chat template")
-            tokenizer.chat_template = tokenizer_config["chat_template"]
-    else:
-        print("No chat template provided, using tokenizer's default")
+            print("No chat template provided, using tokenizer's default")
+    
+    elif tokenizer_type == "sentencepiece":
+        tokenizer = _load_sentencepiece_tokenizer(tokenizer_config)
+
 
     return tokenizer

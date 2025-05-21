@@ -27,7 +27,7 @@ dependencies = [
     "torchdata",
     "nvidia-ml-py",
     "hydra-core",
-    "sentencepiece>=0.2.0,<0.3",,
+    "sentencepiece>=0.2.0,<0.3",
 
 ]
 

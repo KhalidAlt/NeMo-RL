@@ -22,8 +22,8 @@ if [ "${LOCAL_RANK:-0}" -eq 0 ]; then
     # cp -r /opt/nemo-rl/* .
     # Build the training command
     COMMAND=$(cat << 'EOF'
- uv run run_grpo_math.py \
-    --config=conf/grpo.yaml \
+ uv run examples/run_grpo_math.py \
+    --config=examples/configs/grpo_math_8B.yaml \
     cluster.num_nodes=$NUM_NODES \
     policy.train_micro_batch_size=$MBS \
     policy.train_global_batch_size=$BATCH_SIZE \

@@ -1,0 +1,98 @@
+3.12$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+
+# RESTORE_FRON_PATH=$1
+# TRAIN_FILE=$2
+# VALID_FILE=$3
+# EXP_PATH=$4
+# NUM_NODES=$5
+# EXP_NAME=$6
+# MBS=$7
+# BATCH_SIZE=$8
+# TP=$9
+# PP=${10}
+# LR_RATE=${11}
+# CKPT_INTERVAL=${12}
+# EPOCH=${13}
+
+command: bash run.sh ${{inputs.checkpoint}}
+ ${{inputs.nemo_sft_data}}/v19.reduced.shuf.4096.jsonl
+ ${{inputs.nemo_sft_data}}/dev.shuf.jsonl
+ ${{outputs.base_results_dir}} ${{NUM_NODES}} ${{EXP_NAME}}
+ ${{MBS}} ${{BATCH_SIZE}} ${{TP}} ${{PP}} ${{LR_RATE}} ${{CKPT_INTERVAL}} ${{EPOCH}}
+
+display_name: ${{EXP_NAME}}
+
+experiment_name: GRPO Job
+code: .
+environment: azureml:nemo-rl:39
+environment_variables:
+  HYDRA_FULL_ERROR: '1'
+  UCX_IB_PCI_RELAXED_ORDERING: 'auto'
+  NCCL_IB_PCI_RELAXED_ORDERING: '2'
+  NCCL_IB_TIMEOUT: '60'
+  NCCL_DEBUG: INFO
+  WANDB_API_KEY: '' 
+  NCCL_IB_HCA: >-
+    mlx5_ib0:1,mlx5_ib1:1,mlx5_ib2:1,mlx5_ib3:1,mlx5_ib4:1,mlx5_ib5:1,mlx5_ib6:1,mlx5_ib7:1
+  GID_INDEX: '1'
+  NCCL_CUMEM_ENABLE: '0'
+  CUDA_DEVICE_MAX_CONNECTIONS: '1'
+  NCCL_NCHANNELS_PER_NET_PEER: '1'
+  NVTE_BIAS_GELU_NVFUSION: '0'
+
+  # # Ray specific environment variables
+  # RAY_DISABLE_IMPORT_WARNING: '1'
+  # RAY_DEDUP_LOGS: '0'
+  # RAY_ENABLE_MULTI_NODE_SYNC: '1'
+  #   # Ray worker timeout and stability settings
+  # RAY_WORKER_STARTUP_TIMEOUT_SECONDS: '1200'
+  # RAY_WORKER_REGISTER_TIMEOUT_SECONDS: '900'
+  # RAY_RAYLET_STARTUP_TIMEOUT_SECONDS: '180'
+  # RAY_WORKER_MAXIMUM_STARTUP_CONCURRENCY: '1'
+  # RAY_DISABLE_WORKER_PRESTART: '1'
+  # RAY_memory_usage_threshold: '0.95'
+  # RAY_object_spilling_threshold: '0.8'
+  # # CRITICAL: Reduce VLLM memory pressure  
+  # VLLM_GPU_MEMORY_UTILIZATION: '0.7'  # Down from 0.9
+
+
+  # Prevent UV cache conflicts across processes
+  # UV_CACHE_DIR: '/tmp/uv_cache'
+  # UV_LINK_MODE: 'copy'  # Avoid hardlink issues
+
+inputs:
+  checkpoint:
+    type: uri_file
+    mode: ro_mount 
+
+  
+  nemo_sft_data:
+    type: uri_folder
+    mode: ro_mount
+
+outputs:
+  base_results_dir:
+    type: uri_folder
+    mode: rw_mount
+
+
+services:
+  my_jupyterlab:
+    type: jupyter_lab
+    nodes: all
+  my_tensorboard:
+    type: tensor_board
+    properties:
+      logDir: ${{outputs.base_results_dir}}
+
+compute: azureml:H100-clusterv2
+                 
+distribution:
+  type: pytorch
+  process_count_per_instance: 8
+
+resources:
+  instance_count: ${{NUM_NODES}}
+  shm_size: 1250g
+
+
